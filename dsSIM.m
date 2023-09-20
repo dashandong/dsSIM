@@ -323,7 +323,7 @@ function dsSIM
             vector + [0, 0.5 * iterGradStep]);
         corGrad = [corValw2 - corValw1, corValh2 - corValh1] ...
             / iterGradStep;
-        iterStep = 0.1 / max(corGrad);
+        iterStep = 0.1 / norm(corGrad);
         corStep = iterStep * corGrad;
 
         nexttile((d - 1) * 4 + 2);
