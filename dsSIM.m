@@ -18,7 +18,6 @@
 
 function dsSIM
     clc;
-    clear;
 
     fprintf('\tdsSIM  Copyright (C) 2023  by Dashan Dong\n');
     fprintf('\tThis program comes with ABSOLUTELY NO WARRANTY.\n');
@@ -153,7 +152,7 @@ function dsSIM
 
     if isequal(filename_bg, 0)
         warning('Background selection cancelled, NO background correction.');
-        BG = zeros(szWidth, szHeight);
+        BG = zeros(szWidth, szHeight); %#ok<PREALL>
     end
 
     BG = im2double(imread([pathname_bg, filename_bg]));
@@ -179,7 +178,7 @@ function dsSIM
     paraIMatrix = ones(3, numDirection);
 
     % 构建相位矩阵
-    for p = 1:numPhase
+    for p = 1:numPhase %#ok<FXUP>
         paraPhaseVectorFull(p, :) = paraPhaseVector(p);
         paraPhaseMatrix(p, :) = paraPhaseMatrix(p, :) .* ...
             exp(1i * [-paraPhaseVector(p), 0, paraPhaseVector(p)]);
@@ -229,10 +228,10 @@ function dsSIM
     %% 粗分离各方向三个频谱成分
     spectrumSep = complex(zeros(3, szHeight, szWidth, numDirection));
 
-    for d = 1:numDirection
+    for d = 1:numDirection %#ok<FXUP>
         spectrumSepEachP = complex(zeros(numPhase, szHeight * szWidth));
 
-        for p = 1:numPhase
+        for p = 1:numPhase %#ok<FXUP>
             spectrumTemp = spectrumRaw(:, :, p + (d - 1) * numPhase);
             spectrumSepEachP(p, :) = spectrumTemp(:);
         end
@@ -253,7 +252,7 @@ function dsSIM
     spectrumCrossCorr = zeros(szHeight, szWidth, numDirection);
     disp('Locating vectors...');
 
-    for d = 1:numDirection
+    for d = 1:numDirection %#ok<FXUP>
         spectrum1 = squeeze(spectrumSep(1, :, :, d));
         spectrum0 = squeeze(spectrumSep(2, :, :, d));
         spectrum2 = squeeze(spectrumSep(3, :, :, d));
@@ -290,9 +289,9 @@ function dsSIM
     end
 
     % 绘制精细波矢位置图
-    for d = 1:numDirection
+    for d = 1:numDirection %#ok<FXUP>
         nexttile((d - 1) * 4 + 2);
-        pbg = imagesc( ...
+        imagesc( ...
             [-floor(szWidth / 2), szWidth - 1 - floor(szWidth / 2)], ...
             [-floor(szHeight / 2), szHeight - 1 - floor(szHeight / 2)], ...
             ifftshift(spectrumCrossCorr(:, :, d) .* OTFRingMask));
@@ -308,7 +307,7 @@ function dsSIM
     drawnow;
 
     %% 迭代求解波矢
-    for d = 1:numDirection
+    for d = 1:numDirection %#ok<FXUP>
         disp(['Vector iteration for direction #', num2str(d), ' ...']);
         iterGradStep = 1e-7;
         iterBeta = 0.8;
@@ -357,7 +356,7 @@ function dsSIM
     end
 
     %% 求解初始相位和调制深度
-    for d = 1:numDirection
+    for d = 1:numDirection %#ok<FXUP>
         disp(['Solving initial phase and modulation depth for direction #', num2str(d), ' ...']);
         [gamma, phi] = getParameters(spectrumSep(:, :, :, d), ...
             paraIllVector(d, :), d);
@@ -365,7 +364,7 @@ function dsSIM
             paraPhaseVectorFull(:, d) - phi);
         paraIMatrix(:, d) = [2 / gamma, 1, 2 / gamma];
 
-        for p = 1:numPhase
+        for p = 1:numPhase %#ok<FXUP>
             paraPhaseMatrixFull(p, :, d) = ...
                 paraPhaseMatrixFull(p, :, d) .* exp(1i * ...
                 [-paraPhaseVectorFull(p, d), ...
@@ -382,10 +381,10 @@ function dsSIM
     spectrumSep2x = complex( ...
         zeros(3, szHeight * 2, szWidth * 2, numDirection));
 
-    for d = 1:numDirection
+    for d = 1:numDirection %#ok<FXUP>
         spectrumSepEachP = complex(zeros(numPhase, szHeight * szWidth));
 
-        for p = 1:numPhase
+        for p = 1:numPhase %#ok<FXUP>
             spectrumTemp = spectrumRaw(:, :, p + (d - 1) * numPhase);
             spectrumSepEachP(p, :) = spectrumTemp(:);
         end
@@ -414,7 +413,7 @@ function dsSIM
     spectrumSum = complex(zeros(szHeight * 2, szWidth * 2));
     spectrumWiener = complex(zeros(szHeight * 2, szWidth * 2));
 
-    for d = 1:numDirection
+    for d = 1:numDirection %#ok<FXUP>
         spectrumSum = spectrumSum + ...
             specCombine(spectrumSep2x(:, :, :, d), paraIllVector(d, :));
         spectrumWiener = spectrumWiener + ...
@@ -449,7 +448,7 @@ function dsSIM
     uiProcessButton.Layout.Column = 1;
 
     %% 批量处理TIff
-    function batchProcess(src, event)
+    function batchProcess(~, ~)
         disp('Start batch processing ...');
         paraWiener = paraWiener * 10 ^ (uiWienerSlider.Value);
         uiProcessButton.Enable = 'off';
@@ -496,7 +495,7 @@ function dsSIM
 
         for g = 1:numStackGroup
 
-            for f = 1:(numPhase * numDirection)
+            for f = 1:(numPhase * numDirection) %#ok<FXUP>
                 warning off;
                 tiff_raw.setDirectory(numStackStart + (g - 1) * (numPhase * numDirection) + (f - 1));
                 imgRaw(:, :, f) = single(tiff_raw.read());
@@ -504,10 +503,10 @@ function dsSIM
                 spectrumRaw(:, :, f) = fft2(ifftshift(imgRaw(:, :, f)));
             end
 
-            for d = 1:numDirection
+            for d = 1:numDirection %#ok<FXUP>
                 spectrumSepEachP = complex(zeros(numPhase, szHeight * szWidth));
 
-                for p = 1:numPhase
+                for p = 1:numPhase %#ok<FXUP>
                     spectrumTemp = spectrumRaw(:, :, p + (d - 1) * numPhase);
                     spectrumSepEachP(p, :) = spectrumTemp(:);
                 end
@@ -535,7 +534,7 @@ function dsSIM
             spectrumSum = complex(zeros(szHeight * 2, szWidth * 2));
             spectrumWiener = complex(zeros(szHeight * 2, szWidth * 2));
 
-            for d = 1:numDirection
+            for d = 1:numDirection %#ok<FXUP>
                 spectrumSum = spectrumSum + ...
                     specCombine(spectrumSep2x(:, :, :, d), paraIllVector(d, :));
                 spectrumWiener = spectrumWiener + ...
@@ -559,7 +558,7 @@ function dsSIM
     end
 
     %% 重绘预览结果回调函数
-    function drawResult(src, event)
+    function drawResult(src, ~)
         paraWienerTemp = paraWiener * 10 ^ (src.Value);
         spectrumResult = spectrumSum ./ (spectrumWiener + paraWienerTemp ^ 2);
         simResult = real(fftshift(ifft2(spectrumResult)));
@@ -703,16 +702,16 @@ function dsSIM
         title(['\phi=', num2str(rad2deg(phi)), ' deg']);
         drawnow;
 
-        contrast = 0:0.01:2;
+        contrastA = 0:0.01:2;
         contrastX = 0.005:0.01:1.995;
         contrastData1 = abs(testData1);
         contrastData2 = abs(testData2);
         contrastData1 = sqrt(contrastData1 .* contrastData1(end:-1:1));
         contrastData2 = sqrt(contrastData2 .* contrastData2(end:-1:1));
-        contrastCount1 = histcounts(contrastData1, contrast);
+        contrastCount1 = histcounts(contrastData1, contrastA);
         contrastCount1 = contrastCount1 ./ numel(contrastData1);
         contrastCount1 = contrastCount1 / 0.01;
-        contrastCount2 = histcounts(contrastData2, contrast);
+        contrastCount2 = histcounts(contrastData2, contrastA);
         contrastCount2 = contrastCount2 ./ numel(contrastData2);
         contrastCount2 = contrastCount2 / 0.01;
         contrastDist1 = fitdist(contrastData1, 'gev');
@@ -749,7 +748,7 @@ function dsSIM
             0, ...
             A * sin_phi ^ 2 + B * cos_phi * sin_phi + C * cos_phi ^ 2, ...
             D * cos_phi - E * sin_phi, ...
-            D * sin_phi + E * cos_phi);
+            D * sin_phi + E * cos_phi); %#ok<ASGLU>
         [mean_x, mean_y] = deal( ...
             cos_phi * mean_x - sin_phi * mean_y, ...
             sin_phi * mean_x + cos_phi * mean_y);
