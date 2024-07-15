@@ -24,25 +24,27 @@ function dsSIM
     fprintf('\tThis is free software, and you are welcome to redistribute it\n');
     fprintf('\tunder certain conditions.\n\n');
 
-    %% 基本参数
-    % 每个方向条纹移相次数
+    %% Basic Parameters
+    % Number of SIM phases
     numPhase = 3;
-    % 照明条纹方向变化次数
+    % Number of SIM directions
     numDirection = 3;
-    % Wiener滤波参数基数
+    % Winener filter parameter
     paraWiener = 0.1;
-    % 成像系统放大率
+    % Magnification
     paraMag = 100.0;
-    % 成像物镜数值孔径
+    % Numerical aperture
     paraNA = 1.49;
-    % 图像实际像素尺寸
+    % Pixel size
     paraPixelSz = 6.5 / paraMag;
-    % 高频增益幅度
+    % Gain for high frequency
     paraAttAmp = 0;
-    % 高频增益范围
+    % High gain range for high frequency
     paraAttSigma = 2 * pi * 1.5;
+    % Wavelength for emission
+    paraWavelength = 0.52;
 
-    %% 选择SIM原始数据TIFF文件(标准Tiff格式<4G)
+    %% Select SIM raw data (standard Tiff format <4G)
     [filename_raw, pathname_raw] = uigetfile( ...
         '*.tif', 'Select SIM Raw Tiff Stack');
 
@@ -53,7 +55,7 @@ function dsSIM
         disp(fullfile(pathname_raw, filename_raw));
     end
 
-    %% 开始读取文件获取图像尺寸信息
+    %% Reading size of raw data
     warning off;
     tiff_raw = Tiff([pathname_raw, filename_raw], 'r');
     szWidth = tiff_raw.getTag('ImageWidth');
@@ -72,7 +74,7 @@ function dsSIM
         error('Raw Tiff stack is too short to be SIM rawdata!');
     end
 
-    %% 用户输入求参时图像堆栈范围
+    %% Stack and average raw data
     disp('Start to solve the parameters...');
     numStackGroup = input([ ...
                                'How many time points to stack together?\n', ...
@@ -125,11 +127,12 @@ function dsSIM
 
     end
 
+    %% Average the stack
     imgRaw = imgRaw ./ numStackGroup;
     warning on;
     tiff_raw.close();
 
-    %% 读取OTF
+    %% Read OTF
     [filename_otf, pathname_otf] = uigetfile( ...
         '*.tif', 'Select OTF');
 
@@ -146,7 +149,7 @@ function dsSIM
     OTF = fftshift(OTF);
     OTFx2 = fftshift(OTFx2);
 
-    %% 读取Background
+    %% Read Background
     [filename_bg, pathname_bg] = uigetfile( ...
         '*.tif', 'Select Background');
 
@@ -162,13 +165,13 @@ function dsSIM
         BG = zeros(szWidth, szHeight);
     end
 
-    % 扣除背景
+    % Subtract background
     for i = 1:(numPhase * numDirection)
         imgRaw(:, :, i) = imgRaw(:, :, i) - BG;
     end
 
-    %% 中间变量计算
-    paraKm = 2 * pi * paraNA / 0.52;
+    %% Calculate intermediate variables
+    paraKm = 2 * pi * paraNA / paraWavelength;
     paraKWSz = 2 * pi / paraPixelSz / szWidth;
     paraKHSz = 2 * pi / paraPixelSz / szHeight;
     paraPhaseVector = ((1:numPhase) - 1) * 2 * pi / numPhase;
@@ -177,20 +180,20 @@ function dsSIM
     paraPhaseMatrixFull = ones(numPhase, 3, numDirection);
     paraIMatrix = ones(3, numDirection);
 
-    % 构建相位矩阵
+    % phase matrix
     for p = 1:numPhase %#ok<FXUP>
         paraPhaseVectorFull(p, :) = paraPhaseVector(p);
         paraPhaseMatrix(p, :) = paraPhaseMatrix(p, :) .* ...
             exp(1i * [-paraPhaseVector(p), 0, paraPhaseVector(p)]);
     end
 
-    % 坐标架生成
-    axisW = ((1:szWidth) - 1 - floor(szWidth / 2)) / szWidth;
-    axisH = ((1:szHeight) - 1 - floor(szHeight / 2)) / szHeight;
-    [meshW, meshH] = meshgrid(axisW, axisH);
+    % generate meshgrid
+    % axisW = ((1:szWidth) - 1 - floor(szWidth / 2)) / szWidth;
+    % axisH = ((1:szHeight) - 1 - floor(szHeight / 2)) / szHeight;
+    % [meshW, meshH] = meshgrid(axisW, axisH);
 
-    axisKW = ((1:szWidth) - 1 - floor(szWidth / 2)) * paraKWSz;
-    axisKH = ((1:szHeight) - 1 - floor(szHeight / 2)) * paraKHSz;
+    % axisKW = ((1:szWidth) - 1 - floor(szWidth / 2)) * paraKWSz;
+    % axisKH = ((1:szHeight) - 1 - floor(szHeight / 2)) * paraKHSz;
 
     axisWx2 = ((1:(szWidth * 2)) - 1 - szWidth) / (szWidth * 2);
     axisHx2 = ((1:(szHeight * 2)) - 1 - szHeight) / (szHeight * 2);
@@ -199,37 +202,43 @@ function dsSIM
     axisKWx2 = ((1:(szWidth * 2)) - 1 - szWidth) * paraKWSz;
     axisKHx2 = ((1:(szHeight * 2)) - 1 - szHeight) * paraKHSz;
 
-    [meshKW, meshKH] = meshgrid (axisKW, axisKH);
-    [~, meshKR] = cart2pol(meshKW, meshKH);
-    meshKR_shift = ifftshift(meshKR);
+    % [meshKW, meshKH] = meshgrid (axisKW, axisKH);
+    % [~, meshKR] = cart2pol(meshKW, meshKH);
+    % meshKR_shift = ifftshift(meshKR);
 
     [meshKWx2, meshKHx2] = meshgrid(axisKWx2, axisKHx2);
     [~, meshKRx2] = cart2pol(meshKWx2, meshKHx2);
     meshKRx2_shift = ifftshift(meshKRx2);
 
-    % 高频增益函数
+    % Gain function for high frequency
     attFun = 1 - paraAttAmp * exp(-meshKRx2_shift .^ 2 / (2 * paraAttSigma ^ 2));
 
-    % 波矢求解滤波器
-    OTFMask = (meshKR_shift < 2 * paraKm);
-    OTFRingMask = (meshKR_shift < 2 * paraKm) & (meshKR_shift > 1.3 * paraKm);
+    % Filter mask
+    % OTFMask = (meshKR_shift < 2 * paraKm);
+    % OTFRingMask = (meshKR_shift < 2 * paraKm) & (meshKR_shift > 1.3 * paraKm);
     OTFMaskx2 = (meshKRx2_shift < 2 * paraKm);
+    OTFRingMaskx2 = (meshKRx2_shift < 2 * paraKm) & (meshKRx2_shift > 1.3 * paraKm);
 
     paraIllVector = zeros(numDirection, 2);
 
-    %% 傅里叶变换原始图像
-    spectrumRaw = complex(zeros(szHeight, szWidth, ...
-        numPhase * numDirection));
+    %% FFT of raw data
+    imgRaw2x = zeros(szWidth * 2, szHeight * 2, numPhase * numDirection, 'single');
+    spectrumRaw = complex(zeros(szHeight * 2, szWidth * 2, ...
+        numPhase * numDirection, 'single'));
 
     for i = 1:(numPhase * numDirection)
-        spectrumRaw(:, :, i) = fft2(ifftshift(imgRaw(:, :, i)));
+        imgRaw2x(:, :, i) = imresize(imgRaw(:, :, i), [szWidth * 2, szHeight * 2], 'nearest');
     end
 
-    %% 粗分离各方向三个频谱成分
-    spectrumSep = complex(zeros(3, szHeight, szWidth, numDirection));
+    for i = 1:(numPhase * numDirection)
+        spectrumRaw(:, :, i) = fft2(ifftshift(imgRaw2x(:, :, i)));
+    end
+
+    %% Separation of three frequency components in each direction
+    spectrumSep = complex(zeros(3, szHeight * 2, szWidth * 2, numDirection));
 
     for d = 1:numDirection %#ok<FXUP>
-        spectrumSepEachP = complex(zeros(numPhase, szHeight * szWidth));
+        spectrumSepEachP = complex(zeros(numPhase, szHeight * szWidth * 4));
 
         for p = 1:numPhase %#ok<FXUP>
             spectrumTemp = spectrumRaw(:, :, p + (d - 1) * numPhase);
@@ -237,11 +246,11 @@ function dsSIM
         end
 
         spectrumSepEach = paraPhaseMatrix \ spectrumSepEachP;
-        spectrumSep((((d - 1) * 3 * szHeight * szWidth) + 1) ...
-            :(d * 3 * szHeight * szWidth)) = spectrumSepEach(:);
+        spectrumSep((((d - 1) * 3 * szHeight * szWidth * 4) + 1) ...
+            :(d * 3 * szHeight * szWidth * 4)) = spectrumSepEach(:);
     end
 
-    % 绘制粗分离频谱，波矢粗定位
+    % Plot the spectrum and roughly locate the vectors
     f = figure( ...
         'MenuBar', 'none', ...
         'ToolBar', 'none', ...
@@ -256,45 +265,47 @@ function dsSIM
         spectrum1 = squeeze(spectrumSep(1, :, :, d));
         spectrum0 = squeeze(spectrumSep(2, :, :, d));
         spectrum2 = squeeze(spectrumSep(3, :, :, d));
+
+        % Cross correlation of three frequency components
         spectrumCrossCorr1 = abs(fft2(conj(ifft2(spectrum1)) .* ifft2(spectrum0)));
         spectrumCrossCorr2 = abs(fft2(conj(ifft2(spectrum2)) .* ifft2(spectrum0)));
         spectrumCrossCorr(:, :, d) = spectrumCrossCorr1 + spectrumCrossCorr2;
 
         nexttile((d - 1) * 4 + 1);
         pbg = imagesc( ...
-            [-floor(szWidth / 2), szWidth - 1 - floor(szWidth / 2)], ...
-            [-floor(szHeight / 2), szHeight - 1 - floor(szHeight / 2)], ...
-            ifftshift(spectrumCrossCorr(:, :, d) .* OTFRingMask));
+            [-szWidth, szWidth - 1], ...
+            [-szHeight, szHeight - 1], ...
+            ifftshift(spectrumCrossCorr(:, :, d) .* OTFRingMaskx2));
         colormap(contrast(pbg.CData));
         title(['Direction #', num2str(d)]);
         axis image off;
         hold on;
 
-        spectrumLoc = ifftshift(spectrumCrossCorr1 .* OTFRingMask);
+        spectrumLoc = ifftshift(spectrumCrossCorr1 .* OTFRingMaskx2);
         [~, indMax] = max(spectrumLoc(:));
         [indH, indW] = ind2sub(size(spectrumLoc), indMax);
-        indW = indW - floor(szWidth / 2) - 1;
-        indH = indH - floor(szHeight / 2) - 1;
+        indW = indW - szWidth - 1;
+        indH = indH - szHeight - 1;
         plot(indW, indH, 'go');
         paraIllVector(d, :) = [indW, indH];
 
-        spectrumLoc = ifftshift(spectrumCrossCorr2 .* OTFRingMask);
+        spectrumLoc = ifftshift(spectrumCrossCorr2 .* OTFRingMaskx2);
         [~, indMax] = max(spectrumLoc(:));
         [indH, indW] = ind2sub(size(spectrumLoc), indMax);
-        indW = indW - floor(szWidth / 2) - 1;
-        indH = indH - floor(szHeight / 2) - 1;
+        indW = indW - szWidth - 1;
+        indH = indH - szHeight - 1;
         plot(indW, indH, 'ro');
 
         paraIllVector(d, :) = (paraIllVector(d, :) - [indW, indH]) / 2;
     end
 
-    % 绘制精细波矢位置图
+    % Plot the zoomed-in spectrum and locate the vectors
     for d = 1:numDirection %#ok<FXUP>
         nexttile((d - 1) * 4 + 2);
         imagesc( ...
-            [-floor(szWidth / 2), szWidth - 1 - floor(szWidth / 2)], ...
-            [-floor(szHeight / 2), szHeight - 1 - floor(szHeight / 2)], ...
-            ifftshift(spectrumCrossCorr(:, :, d) .* OTFRingMask));
+            [-szWidth, szWidth - 1], ...
+            [-szHeight, szHeight - 1], ...
+            ifftshift(spectrumCrossCorr(:, :, d) .* OTFRingMaskx2));
         colormap(gray);
         axis image;
         xlim([-2 2] + paraIllVector(d, 1))
@@ -306,7 +317,7 @@ function dsSIM
 
     drawnow;
 
-    %% 迭代求解波矢
+    %% Iteratively solve the vector precisely
     for d = 1:numDirection %#ok<FXUP>
         disp(['Vector iteration for direction #', num2str(d), ' ...']);
         iterGradStep = 1e-7;
@@ -355,7 +366,7 @@ function dsSIM
         paraIllVector(d, :) = vector;
     end
 
-    %% 求解初始相位和调制深度
+    %% Solve the initial phase and modulation depth
     for d = 1:numDirection %#ok<FXUP>
         disp(['Solving initial phase and modulation depth for direction #', num2str(d), ' ...']);
         [gamma, phi] = getParameters(spectrumSep(:, :, :, d), ...
@@ -374,10 +385,10 @@ function dsSIM
 
     end
 
-    %% 存储求解报告
+    %% Save a report of parameters
     exportgraphics(f, [pathname_raw, filesep, filename_raw, '.pdf'], 'ContentType', 'vector');
 
-    %% 按照精细参数重新分离频谱
+    %% Separation of three frequency components in each direction with precise vectors
     spectrumSep2x = complex( ...
         zeros(3, szHeight * 2, szWidth * 2, numDirection));
 
@@ -406,7 +417,7 @@ function dsSIM
 
     end
 
-    %% Wiener逆滤波
+    %% Wiener inverse filtering
     spectrumSep2x = ifftshift(spectrumSep2x, 2);
     spectrumSep2x = ifftshift(spectrumSep2x, 3);
 
@@ -420,7 +431,7 @@ function dsSIM
             wienerCombine(paraIllVector(d, :));
     end
 
-    %% 预览结果，调整Wiener参数
+    %% Preview the result and fine-tune the Wiener parameter
     close(f);
     uiResult = uifigure('Name', 'SIM Result', ...
         'Units', 'normalized', ...
@@ -447,7 +458,7 @@ function dsSIM
     uiProcessButton.Layout.Row = 3;
     uiProcessButton.Layout.Column = 1;
 
-    %% 批量处理TIff
+    %% Batch processing for all frames
     function batchProcess(~, ~)
         disp('Start batch processing ...');
         paraWiener = paraWiener * 10 ^ (uiWienerSlider.Value);
@@ -557,7 +568,7 @@ function dsSIM
         tiff_WF.close();
     end
 
-    %% 重绘预览结果回调函数
+    %% Callback function for tuning the Wiener parameter
     function drawResult(src, ~)
         paraWienerTemp = paraWiener * 10 ^ (src.Value);
         spectrumResult = spectrumSum ./ (spectrumWiener + paraWienerTemp ^ 2);
@@ -566,22 +577,22 @@ function dsSIM
         clim(uiAxes, [0, 0.5 * max(simResult(:))]);
     end
 
-    %% 获取特定频移波矢下的相关值
+    %% Get correlation value at specific wave vector
     function corrValve = getCorrVal(spectrumSep3, shiftVector)
         shiftMask = exp(1i * 2 * pi * ...
-            (shiftVector(1) * meshW + shiftVector(2) * meshH));
-        mask0 = OTFMask;
-        mask1 = real(fft2(ifftshift(fftshift(ifft2(OTFMask)) ...
+            (shiftVector(1) * meshWx2 + shiftVector(2) * meshHx2));
+        mask0 = OTFMaskx2;
+        mask1 = real(fft2(ifftshift(fftshift(ifft2(OTFMaskx2)) ...
             .* shiftMask)));
-        mask2 = real(fft2(ifftshift(fftshift(ifft2(OTFMask)) ...
+        mask2 = real(fft2(ifftshift(fftshift(ifft2(OTFMaskx2)) ...
             .* conj(shiftMask))));
         mask1(mask1 < 0.5) = 0;
         mask2(mask2 < 0.5) = 0;
         mask1(mask1 ~= 0) = 1;
         mask2(mask2 ~= 0) = 1;
-        OTF1 = real(fft2(ifftshift(fftshift(ifft2(OTF)) ...
+        OTF1 = real(fft2(ifftshift(fftshift(ifft2(OTFx2)) ...
             .* shiftMask)));
-        OTF2 = real(fft2(ifftshift(fftshift(ifft2(OTF)) ...
+        OTF2 = real(fft2(ifftshift(fftshift(ifft2(OTFx2)) ...
             .* conj(shiftMask))));
         spec0 = squeeze(spectrumSep3(2, :, :));
         spec1 = fft2(ifftshift(fftshift(ifft2( ...
@@ -590,15 +601,15 @@ function dsSIM
             squeeze(spectrumSep3(3, :, :)))) .* conj(shiftMask)));
         maskCom1 = mask0 .* mask1;
         maskCom2 = mask0 .* mask2;
-        specCom1 = maskCom1 .* OTF .* OTF1 .* ...
+        specCom1 = maskCom1 .* OTFx2 .* OTF1 .* ...
             spec0 .* conj(spec1);
-        specCom2 = maskCom2 .* OTF .* OTF2 .* ...
+        specCom2 = maskCom2 .* OTFx2 .* OTF2 .* ...
             spec0 .* conj(spec2);
         corrValve = (abs(sum(specCom1(:))) / sum(maskCom1(:)) + ...
             abs(sum(specCom2(:))) / sum(maskCom2(:))) / 2;
     end
 
-    %% 组合拼接特定波矢下的三个频谱
+    %% Joint the three frequency components at specific wave vector
     function spectrumNew = specCombine(spectrumSep3, shiftVector)
         shiftMask = exp(1i * 2 * pi * ...
             (shiftVector(1) * meshWx2 + shiftVector(2) * meshHx2));
@@ -630,7 +641,7 @@ function dsSIM
         spectrumNew = sum0 + sum1 +sum2;
     end
 
-    %% 求解组合拼接特定波矢下的OTF
+    %% Joint the OTF at specific wave vector
     function wienerNew = wienerCombine(shiftVector)
         shiftMask = exp(1i * 2 * pi * ...
             (shiftVector(1) * meshWx2 + shiftVector(2) * meshHx2));
@@ -657,22 +668,22 @@ function dsSIM
         wienerNew = sum0 + sum1 +sum2;
     end
 
-    %% 求解给定波矢下的调制深度和初始相位
+    %% Solve the initial phase and modulation depth at specific wave vector
     function [gamma, phi] = getParameters(spectrumSep3, shiftVector, ind)
         shiftMask = exp(1i * 2 * pi * ...
-            (shiftVector(1) * meshW + shiftVector(2) * meshH));
-        mask0 = OTFMask;
-        mask1 = real(fft2(ifftshift(fftshift(ifft2(OTFMask)) ...
+            (shiftVector(1) * meshWx2 + shiftVector(2) * meshHx2));
+        mask0 = OTFMaskx2;
+        mask1 = real(fft2(ifftshift(fftshift(ifft2(OTFMaskx2)) ...
             .* shiftMask)));
-        mask2 = real(fft2(ifftshift(fftshift(ifft2(OTFMask)) ...
+        mask2 = real(fft2(ifftshift(fftshift(ifft2(OTFMaskx2)) ...
             .* conj(shiftMask))));
         mask1(mask1 < 0.5) = 0;
         mask2(mask2 < 0.5) = 0;
         mask1(mask1 ~= 0) = 1;
         mask2(mask2 ~= 0) = 1;
-        OTF1 = real(fft2(ifftshift(fftshift(ifft2(OTF)) ...
+        OTF1 = real(fft2(ifftshift(fftshift(ifft2(OTFx2)) ...
             .* shiftMask)));
-        OTF2 = real(fft2(ifftshift(fftshift(ifft2(OTF)) ...
+        OTF2 = real(fft2(ifftshift(fftshift(ifft2(OTFx2)) ...
             .* conj(shiftMask))));
         spec0 = squeeze(spectrumSep3(2, :, :));
         spec1 = fft2(ifftshift(fftshift(ifft2( ...
@@ -681,9 +692,9 @@ function dsSIM
             squeeze(spectrumSep3(3, :, :)))) .* conj(shiftMask)));
         maskcom1 = mask0 .* mask1;
         maskcom2 = mask0 .* mask2;
-        test1 = (maskcom1 .* OTF .* spec1) ./ ...
+        test1 = (maskcom1 .* OTFx2 .* spec1) ./ ...
             (maskcom1 .* OTF1 .* spec0);
-        test2 = (maskcom2 .* OTF .* spec2) ./ ...
+        test2 = (maskcom2 .* OTFx2 .* spec2) ./ ...
             (maskcom2 .* OTF2 .* spec0);
         testData1 = test1(maskcom1 ~= 0);
         testData2 = test2(maskcom2 ~= 0);
@@ -730,7 +741,7 @@ function dsSIM
         drawnow;
     end
 
-    %% 极坐标下最小二乘拟合椭圆
+    %% Fitting an ellipse in polar coordinates
     function [alpha_rad, ellipse] = getElipseAlpha(Theta, Rho)
         [x, y] = pol2cart(Theta(:), Rho(:));
         mean_x = mean(x(:));
