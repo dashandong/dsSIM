@@ -258,7 +258,7 @@ function dsSIM
         'Units', 'normalized', ...
         'Position', [0.1 0.1 0.8 0.8]);
     tiledlayout(f, 3, 4);
-    spectrumCrossCorr = zeros(szHeight, szWidth, numDirection);
+    spectrumCrossCorr = zeros(szHeight * 2, szWidth * 2, numDirection);
     disp('Locating vectors...');
 
     for d = 1:numDirection %#ok<FXUP>
