@@ -277,6 +277,8 @@ function dsSIM
             [-szHeight, szHeight - 1], ...
             ifftshift(spectrumCrossCorr(:, :, d) .* OTFRingMaskx2));
         colormap(contrast(pbg.CData));
+        xlim(-floor(szWidth / 2), floor(szWidth / 2) - 1);
+        ylim(-floor(szHeight / 2), floor(szHeight / 2) - 1);
         title(['Direction #', num2str(d)]);
         axis image off;
         hold on;
@@ -389,11 +391,8 @@ function dsSIM
     exportgraphics(f, [pathname_raw, filesep, filename_raw, '.pdf'], 'ContentType', 'vector');
 
     %% Separation of three frequency components in each direction with precise vectors
-    spectrumSep2x = complex( ...
-        zeros(3, szHeight * 2, szWidth * 2, numDirection));
-
     for d = 1:numDirection %#ok<FXUP>
-        spectrumSepEachP = complex(zeros(numPhase, szHeight * szWidth));
+        spectrumSepEachP = complex(zeros(numPhase, szHeight * szWidth * 4));
 
         for p = 1:numPhase %#ok<FXUP>
             spectrumTemp = spectrumRaw(:, :, p + (d - 1) * numPhase);
@@ -402,31 +401,23 @@ function dsSIM
 
         spectrumSepEach = squeeze(paraPhaseMatrixFull(:, :, d)) ...
             \ spectrumSepEachP;
-        spectrumSep((((d - 1) * 3 * szHeight * szWidth) + 1) ...
-            :(d * 3 * szHeight * szWidth)) = spectrumSepEach(:);
+        spectrumSep((((d - 1) * 3 * szHeight * szWidth * 4) + 1) ...
+            :(d * 3 * szHeight * szWidth * 4)) = spectrumSepEach(:);
 
         for i = 1:3
             spectrumSep(i, :, :, d) = paraIMatrix(i, d) .* ...
                 spectrumSep(i, :, :, d);
-            spectrumTemp = fftshift(squeeze(spectrumSep(i, :, :, d)));
-            spectrumSep2x(i, ...
-                (floor((szHeight - 1) / 2) + 2):(floor((szHeight - 1) / 2) + 1 + szHeight), ...
-                (floor((szHeight - 1) / 2) + 2):(floor((szHeight - 1) / 2) + 1 + szHeight), ...
-                d) = spectrumTemp * 4;
         end
 
     end
 
     %% Wiener inverse filtering
-    spectrumSep2x = ifftshift(spectrumSep2x, 2);
-    spectrumSep2x = ifftshift(spectrumSep2x, 3);
-
     spectrumSum = complex(zeros(szHeight * 2, szWidth * 2));
     spectrumWiener = complex(zeros(szHeight * 2, szWidth * 2));
 
     for d = 1:numDirection %#ok<FXUP>
         spectrumSum = spectrumSum + ...
-            specCombine(spectrumSep2x(:, :, :, d), paraIllVector(d, :));
+            specCombine(spectrumSep(:, :, :, d), paraIllVector(d, :));
         spectrumWiener = spectrumWiener + ...
             wienerCombine(paraIllVector(d, :));
     end
@@ -511,11 +502,12 @@ function dsSIM
                 tiff_raw.setDirectory(numStackStart + (g - 1) * (numPhase * numDirection) + (f - 1));
                 imgRaw(:, :, f) = single(tiff_raw.read());
                 warning on;
-                spectrumRaw(:, :, f) = fft2(ifftshift(imgRaw(:, :, f)));
+                imgRaw2x(:, :, f) = imresize(imgRaw(:, :, f), [szWidth * 2, szHeight * 2], 'nearest');
+                spectrumRaw(:, :, f) = fft2(ifftshift(imgRaw2x(:, :, f)));
             end
 
             for d = 1:numDirection %#ok<FXUP>
-                spectrumSepEachP = complex(zeros(numPhase, szHeight * szWidth));
+                spectrumSepEachP = complex(zeros(numPhase, szHeight * szWidth * 4));
 
                 for p = 1:numPhase %#ok<FXUP>
                     spectrumTemp = spectrumRaw(:, :, p + (d - 1) * numPhase);
@@ -524,30 +516,22 @@ function dsSIM
 
                 spectrumSepEach = squeeze(paraPhaseMatrixFull(:, :, d)) ...
                     \ spectrumSepEachP;
-                spectrumSep((((d - 1) * 3 * szHeight * szWidth) + 1) ...
-                    :(d * 3 * szHeight * szWidth)) = spectrumSepEach(:);
+                spectrumSep((((d - 1) * 3 * szHeight * szWidth * 4) + 1) ...
+                    :(d * 3 * szHeight * szWidth * 4)) = spectrumSepEach(:);
 
                 for r = 1:3
                     spectrumSep(r, :, :, d) = paraIMatrix(r, d) .* ...
                         spectrumSep(r, :, :, d);
-                    spectrumTemp = fftshift(squeeze(spectrumSep(r, :, :, d)));
-                    spectrumSep2x(r, ...
-                        (floor((szHeight - 1) / 2) + 2):(floor((szHeight - 1) / 2) + 1 + szHeight), ...
-                        (floor((szHeight - 1) / 2) + 2):(floor((szHeight - 1) / 2) + 1 + szHeight), ...
-                        d) = spectrumTemp * 4;
                 end
 
             end
-
-            spectrumSep2x = ifftshift(spectrumSep2x, 2);
-            spectrumSep2x = ifftshift(spectrumSep2x, 3);
 
             spectrumSum = complex(zeros(szHeight * 2, szWidth * 2));
             spectrumWiener = complex(zeros(szHeight * 2, szWidth * 2));
 
             for d = 1:numDirection %#ok<FXUP>
                 spectrumSum = spectrumSum + ...
-                    specCombine(spectrumSep2x(:, :, :, d), paraIllVector(d, :));
+                    specCombine(spectrumSep(:, :, :, d), paraIllVector(d, :));
                 spectrumWiener = spectrumWiener + ...
                     wienerCombine(paraIllVector(d, :));
             end
@@ -713,18 +697,19 @@ function dsSIM
         title(['\phi=', num2str(rad2deg(phi)), ' deg']);
         drawnow;
 
-        contrastA = 0:0.01:2;
-        contrastX = 0.005:0.01:1.995;
+        contrastDelta = 0.005;
+        contrastA = 0:contrastDelta:2;
+        contrastX = (contrastDelta / 2):contrastDelta:(2 - contrastDelta / 2);
         contrastData1 = abs(testData1);
         contrastData2 = abs(testData2);
         contrastData1 = sqrt(contrastData1 .* contrastData1(end:-1:1));
         contrastData2 = sqrt(contrastData2 .* contrastData2(end:-1:1));
         contrastCount1 = histcounts(contrastData1, contrastA);
         contrastCount1 = contrastCount1 ./ numel(contrastData1);
-        contrastCount1 = contrastCount1 / 0.01;
+        contrastCount1 = contrastCount1 / contrastDelta;
         contrastCount2 = histcounts(contrastData2, contrastA);
         contrastCount2 = contrastCount2 ./ numel(contrastData2);
-        contrastCount2 = contrastCount2 / 0.01;
+        contrastCount2 = contrastCount2 / contrastDelta;
         contrastDist1 = fitdist(contrastData1, 'gev');
         contrastDist2 = fitdist(contrastData2, 'gev');
         contrastFit1 = pdf(contrastDist1, contrastX);
