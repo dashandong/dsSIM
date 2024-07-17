@@ -1,5 +1,5 @@
 % Image Reconstruction for Structured Illumination Microscopy(SIM)
-% Copyright (C) 2023 by Dr. Dashan Dong (dongdashan@icloud.com)
+% Copyright (C) 2024 by Dr. Dashan Dong (dongdashan@icloud.com)
 %
 % This program is free software:you can redistribute it and / or modify
 % it under the terms of the GNU General Public License as published by
@@ -14,12 +14,12 @@
 % You should have received a copy of the GNU General Public License
 % along with this program. If not, see < https: // www.gnu.org / licenses /> .
 
-% last edited @ 2023/09/09 by Dashan Dong
+% last edited @ 2024/07/16 by Dashan Dong
 
 function dsSIM
     clc;
 
-    fprintf('\tdsSIM  Copyright (C) 2023  by Dashan Dong\n');
+    fprintf('\tdsSIM  Copyright (C) 2024  by Dashan Dong\n');
     fprintf('\tThis program comes with ABSOLUTELY NO WARRANTY.\n');
     fprintf('\tThis is free software, and you are welcome to redistribute it\n');
     fprintf('\tunder certain conditions.\n\n');
