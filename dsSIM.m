@@ -30,7 +30,7 @@ function dsSIM
     % Number of SIM directions
     numDirection = 3;
     % Winener filter parameter
-    paraWiener = 0.1;
+    paraWiener = 0.5;
     % Magnification
     paraMag = 100.0;
     % Numerical aperture
@@ -38,7 +38,7 @@ function dsSIM
     % Pixel size
     paraPixelSz = 6.5 / paraMag;
     % Gain for high frequency
-    paraAttAmp = 0;
+    paraAttAmp = 1;
     % High gain range for high frequency
     paraAttSigma = 2 * pi * 1.5;
     % Wavelength for emission
@@ -215,9 +215,9 @@ function dsSIM
 
     % Filter mask
     % OTFMask = (meshKR_shift < 2 * paraKm);
-    % OTFRingMask = (meshKR_shift < 2 * paraKm) & (meshKR_shift > 1.3 * paraKm);
+    % OTFRingMask = (meshKR_shift < 2 * paraKm) & (meshKR_shift > 1.0 * paraKm);
     OTFMaskx2 = (meshKRx2_shift < 2 * paraKm);
-    OTFRingMaskx2 = (meshKRx2_shift < 2 * paraKm) & (meshKRx2_shift > 1.3 * paraKm);
+    OTFRingMaskx2 = (meshKRx2_shift < 2 * paraKm) & (meshKRx2_shift > 1.0 * paraKm);
 
     paraIllVector = zeros(numDirection, 2);
 
@@ -231,7 +231,7 @@ function dsSIM
     end
 
     for i = 1:(numPhase * numDirection)
-        spectrumRaw(:, :, i) = fft2(ifftshift(imgRaw2x(:, :, i)));
+        spectrumRaw(:, :, i) = fft2(ifftshift(imgRaw2x(:, :, i))) .* attFun;
     end
 
     %% Separation of three frequency components in each direction
@@ -277,8 +277,8 @@ function dsSIM
             [-szHeight, szHeight - 1], ...
             ifftshift(spectrumCrossCorr(:, :, d) .* OTFRingMaskx2));
         colormap(contrast(pbg.CData));
-        xlim(-floor(szWidth / 2), floor(szWidth / 2) - 1);
-        ylim(-floor(szHeight / 2), floor(szHeight / 2) - 1);
+        xlim([-floor(szWidth / 2), floor(szWidth / 2) - 1]);
+        ylim([-floor(szHeight / 2), floor(szHeight / 2) - 1]);
         title(['Direction #', num2str(d)]);
         axis image off;
         hold on;
@@ -322,7 +322,7 @@ function dsSIM
     %% Iteratively solve the vector precisely
     for d = 1:numDirection %#ok<FXUP>
         disp(['Vector iteration for direction #', num2str(d), ' ...']);
-        iterGradStep = 1e-7;
+        iterGradStep = 1e-6;
         iterBeta = 0.8;
         vector = paraIllVector(d, :);
         corValw1 = getCorrVal(spectrumSep(:, :, :, d), ...
@@ -656,7 +656,7 @@ function dsSIM
     function [gamma, phi] = getParameters(spectrumSep3, shiftVector, ind)
         shiftMask = exp(1i * 2 * pi * ...
             (shiftVector(1) * meshWx2 + shiftVector(2) * meshHx2));
-        mask0 = OTFMaskx2;
+        mask0 = OTFRingMaskx2;
         mask1 = real(fft2(ifftshift(fftshift(ifft2(OTFMaskx2)) ...
             .* shiftMask)));
         mask2 = real(fft2(ifftshift(fftshift(ifft2(OTFMaskx2)) ...
