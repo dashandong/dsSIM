@@ -10,13 +10,13 @@ function osSIM()
     % Winener filter parameter
     paraWiener = 0.5;
     % Magnification
-    paraMag = 100.0;
+    paraMag = 50.0 * 250 / 200;
     % Numerical aperture
-    paraNA = 1.49;
+    paraNA = 0.8;
     % Pixel size
     paraPixelSz = 6.5 / paraMag;
     % Gain for high frequency
-    paraAttAmp = 1;
+    paraAttAmp = 0;
     % High gain range for high frequency
     paraAttSigma = 2 * pi * 1.5;
     % Wavelength for emission
@@ -110,13 +110,37 @@ function osSIM()
     warning on;
     tiff_raw.close();
 
-    osImg1 = sqrt((imgRaw(:,:,1)-imgRaw(:,:,2)).^2+(imgRaw(:,:,1)-imgRaw(:,:,3)).^2+(imgRaw(:,:,2)-imgRaw(:,:,3)).^2);
-    osImg2 = sqrt((imgRaw(:,:,4)-imgRaw(:,:,5)).^2+(imgRaw(:,:,4)-imgRaw(:,:,6)).^2+(imgRaw(:,:,5)-imgRaw(:,:,6)).^2);
-    osImg3 = sqrt((imgRaw(:,:,7)-imgRaw(:,:,8)).^2+(imgRaw(:,:,7)-imgRaw(:,:,9)).^2+(imgRaw(:,:,8)-imgRaw(:,:,9)).^2);
+    %% Background substraction with optical sectioned SIM
+    %  osImg = sqrt(2) * var(imgRaw);
+    %  or    = sqrt(((A-B).^2+(A-C).^2+(B-C).^2)*2) / 3;
+    osImg = zeros(szWidth, szHeight, numDirection, 'single');
+    osBG = zeros(szWidth, szHeight, numDirection, 'single');
+    for d = 1:numDirection
+        for p = 1:numPhase
+            for p2 = 1:numPhase
+                if p2 ~= p
+                    osImg(:, :, d) = osImg(:, :, d) + (imgRaw(:, :, p + (d - 1) * numPhase) - imgRaw(:, :, p2 + (d - 1) * numPhase)).^2;
+                end
+            end
+            osBG(:, :, d) = osBG(:, :, d) + imgRaw(:, :, p + (d - 1) * numPhase) / numPhase;
+        end
+        osImg(:, :, d) = sqrt(osImg(:, :, d)) / numPhase;
+        osBG(:, :, d) = osBG(:, :, d) - osImg(:, :, d);
+        for p = 1:numPhase
+            imgRaw(:, :, p + (d - 1) * numPhase) = imgRaw(:, :, p + (d - 1) * numPhase) - osBG(:, :, d);
+        end
+    end
 
-    BG1 = mean(imgRaw(:,:,1:3), 3) - osImg1;
-    BG2 = mean(imgRaw(:,:,4:6), 3) - osImg2;
-    BG3 = mean(imgRaw(:,:,7:9), 3) - osImg3;
-
-    imagesc(imgRaw(:,:,1) - BG1);
+    tiff_os = Tiff([pathname_raw, 'os_', filename_raw], 'w');
+    tiff_osTag = struct('ImageWidth', szWidth, ...
+        'ImageLength', szHeight, ...
+        'Photometric', Tiff.Photometric.MinIsBlack, ...
+        'BitsPerSample', 32, ...
+        'SampleFormat', Tiff.SampleFormat.IEEEFP, ...
+        'SamplesPerPixel', 1, ...
+        'PlanarConfiguration', Tiff.PlanarConfiguration.Chunky);
+    tiff_os.setTag(tiff_osTag);
+    tiff_os.write(mean(osImg, 3));
+    tiff_os.writeDirectory();
+    tiff_os.close();
 end

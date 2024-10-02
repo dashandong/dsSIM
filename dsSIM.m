@@ -32,9 +32,9 @@ function dsSIM
     % Winener filter parameter
     paraWiener = 0.5;
     % Magnification
-    paraMag = 100.0;
+    paraMag = 50 * (250 / 200);
     % Numerical aperture
-    paraNA = 1.49;
+    paraNA = 0.8;
     % Pixel size
     paraPixelSz = 6.5 / paraMag;
     % Gain for high frequency
@@ -42,7 +42,7 @@ function dsSIM
     % High gain range for high frequency
     paraAttSigma = 2 * pi * 1.5;
     % Wavelength for emission
-    paraWavelength = 0.52;
+    paraWavelength = 0.575;
 
     %% Select SIM raw data (standard Tiff format <4G)
     [filename_raw, pathname_raw] = uigetfile( ...
@@ -132,6 +132,25 @@ function dsSIM
     warning on;
     tiff_raw.close();
 
+    %% Background substraction with optical sectioned SIM
+    % osImg = zeros(szWidth, szHeight, numDirection, 'single');
+    % osBG = zeros(szWidth, szHeight, numDirection, 'single');
+    % for d = 1:numDirection
+    %     for p = 1:numPhase
+    %         for p2 = 1:numPhase
+    %             if p2 ~= p
+    %                 osImg(:, :, d) = osImg(:, :, d) + (imgRaw(:, :, p + (d - 1) * numPhase) - imgRaw(:, :, p2 + (d - 1) * numPhase)).^2;
+    %             end
+    %         end
+    %         osBG(:, :, d) = osBG(:, :, d) + imgRaw(:, :, p + (d - 1) * numPhase) / numPhase;
+    %     end
+    %     osImg(:, :, d) = sqrt(osImg(:, :, d) / (numPhase * (numPhase - 1)));
+    %     osBG(:, :, d) = osBG(:, :, d) - osImg(:, :, d);
+    %     for p = 1:numPhase
+    %         imgRaw(:, :, p + (d - 1) * numPhase) = imgRaw(:, :, p + (d - 1) * numPhase) - osBG(:, :, d);
+    %     end
+    % end
+
     %% Read OTF
     [filename_otf, pathname_otf] = uigetfile( ...
         '*.tif', 'Select OTF');
@@ -156,9 +175,9 @@ function dsSIM
     if isequal(filename_bg, 0)
         warning('Background selection cancelled, NO background correction.');
         BG = zeros(szWidth, szHeight); %#ok<PREALL>
+    else
+        BG = im2double(imread([pathname_bg, filename_bg]));
     end
-
-    BG = im2double(imread([pathname_bg, filename_bg]));
 
     if ~isequal(size(BG), [szWidth, szHeight])
         warning('Worng background size, NO background correction.');
@@ -217,7 +236,7 @@ function dsSIM
     % OTFMask = (meshKR_shift < 2 * paraKm);
     % OTFRingMask = (meshKR_shift < 2 * paraKm) & (meshKR_shift > 1.0 * paraKm);
     OTFMaskx2 = (meshKRx2_shift < 2 * paraKm);
-    OTFRingMaskx2 = (meshKRx2_shift < 2 * paraKm) & (meshKRx2_shift > 1.0 * paraKm);
+    OTFRingMaskx2 = (meshKRx2_shift < 2 * paraKm) & (meshKRx2_shift > 0.5 * paraKm);
 
     paraIllVector = zeros(numDirection, 2);
 
